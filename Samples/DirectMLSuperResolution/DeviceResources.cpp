@@ -212,8 +212,14 @@ void DeviceResources::CreateDeviceResources()
     m_commandList->SetName(L"DeviceResources");
 
     // Create a fence for tracking GPU execution progress.
-    ThrowIfFailed(m_d3dDevice->CreateFence(m_fenceValues[m_backBufferIndex], D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.ReleaseAndGetAddressOf())));
+    ThrowIfFailed(m_d3dDevice->CreateFence(m_fenceValues[m_backBufferIndex], D3D12_FENCE_FLAG_SHARED, IID_PPV_ARGS(m_fence.ReleaseAndGetAddressOf())));
     m_fenceValues[m_backBufferIndex]++;
+
+    m_d3dDevice->CreateSharedHandle(m_fence.Get(),
+        NULL,
+        GENERIC_ALL,
+        NULL,
+        &m_shared_fence_handle);
 
     m_fence->SetName(L"DeviceResources");
 
@@ -272,15 +278,20 @@ void DeviceResources::Prepare()
 }
 
 // Present the contents of the swap chain to the screen.
-void DeviceResources::SubmitWork()
+void DeviceResources::SubmitWork(HANDLE inputWaitFence, uint64_t inputWaitFenceValue, HANDLE* outputWaitFence, uint64_t* outputWaitFenceValue)
 {
     // Send the command list off to the GPU for processing.
     ThrowIfFailed(m_commandList->Close());
+    if (inputWaitFence)
+    {
+        ComPtr<ID3D12Fence> wait_fence;
+        ThrowIfFailed(m_d3dDevice->OpenSharedHandle(inputWaitFence, IID_PPV_ARGS(&wait_fence)));
+        m_commandQueue->Wait(wait_fence.Get(), inputWaitFenceValue);
+    }
+    
     m_commandQueue->ExecuteCommandLists(1, CommandListCast(m_commandList.GetAddressOf()));
 
-    WaitForGpu(); // TODO: Replace with fence
-
-    MoveToNextFrame();
+    MoveToNextFrame(outputWaitFence, outputWaitFenceValue);
 }
 
 // Wait for pending GPU work to complete.
@@ -305,14 +316,19 @@ void DeviceResources::WaitForGpu() noexcept
 }
 
 // Prepare to render the next frame.
-void DeviceResources::MoveToNextFrame()
+void DeviceResources::MoveToNextFrame(HANDLE* outputWaitFence, uint64_t* outputWaitFenceValue)
 {
     // Schedule a Signal command in the queue.
     const UINT64 currentFenceValue = m_fenceValues[m_backBufferIndex];
+    if (outputWaitFenceValue)
+        *outputWaitFenceValue = currentFenceValue;
+    if (outputWaitFence)
+        *outputWaitFence = m_shared_fence_handle;
+
     ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), currentFenceValue));
 
     // Update the back buffer index.
-    m_backBufferIndex = (m_backBufferIndex + 1) % 2;
+    m_backBufferIndex = (m_backBufferIndex + 1) % m_backBufferCount;
 
     // If the next frame is not ready to be rendered yet, wait until it is ready.
     if (m_fence->GetCompletedValue() < m_fenceValues[m_backBufferIndex])

@@ -27,12 +27,13 @@ enum class TensorLayout
 class Upscaler final : public DX::IDeviceNotify
 {
 public:
+    static const UINT c_backBufferCount = 8;
 
     Upscaler() noexcept(false);
     ~Upscaler();
 
     void Initialize(int width, int height, HANDLE* pSrcSharedHandle, HANDLE* pDstSharedHandle);
-    void Render();
+    void Render(HANDLE inputWaitFence, uint64_t inputWaitFenceValue, HANDLE* outputWaitFence, uint64_t* outputWaitFenceValue);
 
     // IDeviceNotify
     virtual void OnDeviceLost() override;
@@ -146,4 +147,5 @@ private:
 
 __declspec(dllexport) void __cdecl CreateUpscaler(int src_width, int src_height, void** pUPScaler, HANDLE* pSrcSharedResource, HANDLE* pDstSharedResource);
 __declspec(dllexport) void __cdecl DeleteUpscaler(void* pUPScaler);
-__declspec(dllexport) void __cdecl RenderUpscale(void* pUPScaler);
+__declspec(dllexport) void __cdecl RenderUpscale(void* pUPScaler, HANDLE inputWaitFence, uint64_t inputWaitFenceValue, HANDLE* outputWaitFence, uint64_t* outputWaitFenceValue);
+__declspec(dllexport) uint32_t __cdecl GetMaxBackBuffers(); /* Number of in-flight operations until overwriting circular buffer */

@@ -31,7 +31,7 @@ namespace DX
         void HandleDeviceLost();
         void RegisterDeviceNotify(IDeviceNotify* deviceNotify) { m_deviceNotify = deviceNotify; }
         void Prepare();
-        void SubmitWork();
+        void SubmitWork(HANDLE inputWaitFence, uint64_t inputWaitFenceValue, HANDLE* outputWaitFence, uint64_t* outputWaitFenceValue);
         void WaitForGpu() noexcept;
 
         // Device Accessors.
@@ -64,11 +64,11 @@ namespace DX
             return CD3DX12_CPU_DESCRIPTOR_HANDLE(m_dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
         }
 
-    private:
-        void MoveToNextFrame();
-        void GetAdapter(IDXGIAdapter1** ppAdapter);
+        static const size_t MAX_BACK_BUFFER_COUNT = 16;
 
-        static const size_t MAX_BACK_BUFFER_COUNT = 3;
+    private:
+        void MoveToNextFrame(HANDLE* outputWaitFence, uint64_t* outputWaitFenceValue);
+        void GetAdapter(IDXGIAdapter1** ppAdapter);
 
         UINT                                                m_backBufferIndex;
 
@@ -83,6 +83,7 @@ namespace DX
 
         // Presentation fence objects.
         Microsoft::WRL::ComPtr<ID3D12Fence>                 m_fence;
+        HANDLE m_shared_fence_handle = nullptr;
         UINT64                                              m_fenceValues[MAX_BACK_BUFFER_COUNT];
         Microsoft::WRL::Wrappers::Event                     m_fenceEvent;
 

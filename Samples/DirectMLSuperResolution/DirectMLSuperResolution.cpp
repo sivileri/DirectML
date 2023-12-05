@@ -54,7 +54,7 @@ Upscaler::Upscaler()
 {
     // Renders only 2D, so no need for a depth buffer.
     m_deviceResources = std::make_unique<DX::DeviceResources>(DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_UNKNOWN,
-        3, D3D_FEATURE_LEVEL_11_0, 0);
+        c_backBufferCount, D3D_FEATURE_LEVEL_11_0, 0);
     m_deviceResources->RegisterDeviceNotify(this);
 }
 
@@ -80,7 +80,7 @@ void Upscaler::Initialize(int width, int height, HANDLE* pSrcSharedHandle, HANDL
 #pragma region Frame Update
 #pragma region Frame Render
 // Draws the scene.
-void Upscaler::Render()
+void Upscaler::Render(HANDLE inputWaitFence, uint64_t inputWaitFenceValue, HANDLE* outputWaitFence, uint64_t* outputWaitFenceValue)
 {
     // Prepare the command list to render a new frame.
     m_deviceResources->Prepare();
@@ -165,7 +165,7 @@ void Upscaler::Render()
         commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);
     }
 
-    m_deviceResources->SubmitWork();
+    m_deviceResources->SubmitWork(inputWaitFence, inputWaitFenceValue, outputWaitFence, outputWaitFenceValue);
 }
 #pragma endregion
 
@@ -508,9 +508,15 @@ void DeleteUpscaler(void *pUPScaler)
     delete pUPScaler;
 }
 
-void RenderUpscale(void* pUPScaler)
+void RenderUpscale(void* pUPScaler, HANDLE inputWaitFence, uint64_t inputWaitFenceValue, HANDLE *outputWaitFence, uint64_t* outputWaitFenceValue)
 {
 #pragma comment(linker, "/EXPORT:" __FUNCTION__"=" __FUNCDNAME__)
     Upscaler* upscaler = (Upscaler*) pUPScaler;
-    upscaler->Render();
+    upscaler->Render(inputWaitFence, inputWaitFenceValue, outputWaitFence, outputWaitFenceValue);
+}
+
+uint32_t GetMaxBackBuffers()
+{
+#pragma comment(linker, "/EXPORT:" __FUNCTION__"=" __FUNCDNAME__)
+    return Upscaler::c_backBufferCount;
 }
