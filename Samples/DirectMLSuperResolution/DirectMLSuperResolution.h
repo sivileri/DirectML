@@ -17,9 +17,6 @@
 // this based on the GPU vendor. Setting this may help run on older Nvidia hardware.
 #define FORCE_NCHW 0
 
-// Use video frames as input to the DirectML model, instead of a static texture.
-#define USE_VIDEO 1
-
 // Let DirectML manage the data in the weight tensors. This can be faster on some hardware.
 #define DML_MANAGED_WEIGHTS 1
 
@@ -149,13 +146,6 @@ private:
         _In_reads_(1) IDMLBindingTable* initBindingTable,
         _Out_writes_opt_(1) ID3D12Resource** tempResource);
 
-    // DirectML method for setting up Tensors and creating operators
-#if !(USE_DMLX)
-    void CreateAdditionLayer(
-        _In_reads_(4) const uint32_t* inputSizes,
-        _Out_writes_(1) IDMLCompiledOperator** compiledOpOut);
-#endif
-
     // Device resources
     std::unique_ptr<DX::DeviceResources>            m_deviceResources;
 
@@ -196,8 +186,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12PipelineState>     m_texPipelineStateLinear;
     Microsoft::WRL::ComPtr<ID3D12RootSignature>     m_tensorRenderRootSignature;    // Render from DML tensor format to texture
     Microsoft::WRL::ComPtr<ID3D12PipelineState>     m_tensorRenderPipelineState;
-    Microsoft::WRL::ComPtr<ID3D12Resource>          m_texture;                      // Static input texture to render, if USE_VIDEO == 0
-    Microsoft::WRL::ComPtr<ID3D12Resource>          m_videoTexture;                 // Input video frame to render, if USE_VIDEO == 1
+    Microsoft::WRL::ComPtr<ID3D12Resource>          m_videoTexture;
     Microsoft::WRL::ComPtr<ID3D12Resource>          m_finalResultTexture;           // Upscaled 4K texture output
     uint32_t                                        m_origTextureHeight;
     uint32_t                                        m_origTextureWidth;
@@ -239,37 +228,12 @@ private:
     Microsoft::WRL::ComPtr<ID3D12Resource>          m_modelInput;
     Microsoft::WRL::ComPtr<ID3D12Resource>          m_modelOutput;
 
-    // DirectML Model Resources
-#if !(USE_DMLX)
-    Microsoft::WRL::ComPtr<ID3D12Resource>          m_modelIntermediateResult[c_numIntermediateBuffers];
-
-    Microsoft::WRL::ComPtr<ID3D12Resource>          m_modelUpsamplePersistentResources[c_numUpsampleLayers];
-    Microsoft::WRL::ComPtr<ID3D12Resource>          m_modelConvPersistentResources[c_numConvLayers];
-    Microsoft::WRL::ComPtr<ID3D12Resource>          m_modelAddPersistentResource;
-
-    Microsoft::WRL::ComPtr<ID3D12Resource>          m_modelInitTemporaryResources[e_opCount];
-    Microsoft::WRL::ComPtr<ID3D12Resource>          m_modelUpsampleTemporaryResources[c_numUpsampleLayers];
-    Microsoft::WRL::ComPtr<ID3D12Resource>          m_modelConvTemporaryResources[c_numConvLayers];
-    Microsoft::WRL::ComPtr<ID3D12Resource>          m_modelAddTemporaryResource;
-#endif
-
     // DirectMLX Model Resources
     Microsoft::WRL::ComPtr<ID3D12Resource>          m_modelConvFilterWeights[c_numConvLayers];
     Microsoft::WRL::ComPtr<ID3D12Resource>          m_modelConvBiasWeights[c_numConvLayers];
 
     Microsoft::WRL::ComPtr<ID3D12Resource>          m_modelPersistentResource;
     Microsoft::WRL::ComPtr<ID3D12Resource>          m_modelTemporaryResource;
-
-    // DirectML operations
-#if !(USE_DMLX)
-    Microsoft::WRL::ComPtr<IDMLCompiledOperator>    m_dmlUpsampleOps[c_numUpsampleLayers];
-    Microsoft::WRL::ComPtr<IDMLBindingTable>        m_dmlUpsampleBindings[c_numUpsampleLayers];
-    Microsoft::WRL::ComPtr<IDMLCompiledOperator>    m_dmlConvOps[c_numConvLayers];
-    Microsoft::WRL::ComPtr<IDMLBindingTable>        m_dmlConvBindings[c_numConvLayers];
-    Microsoft::WRL::ComPtr<IDMLCompiledOperator>    m_dmlAddResidualOp;
-    Microsoft::WRL::ComPtr<IDMLBindingTable>        m_dmlAddResidualBinding;
-    Microsoft::WRL::ComPtr<IDMLOperatorInitializer> m_dmlOpInitializers[e_opCount];
-#endif
 
     // DirectMLX operations
     Microsoft::WRL::ComPtr<IDMLCompiledOperator>    m_dmlGraph;

@@ -84,7 +84,6 @@
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Readme.docx" />
     <None Include="Media\Fonts\SegoeUI_18.spritefont">
       <Filter>Assets</Filter>
     </None>
@@ -100,7 +99,6 @@
     <None Include="Media\Fonts\XboxOneControllerLegendSmall.spritefont">
       <Filter>Assets</Filter>
     </None>
-    <None Include="Readme.md" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>

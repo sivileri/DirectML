@@ -266,12 +266,12 @@ void Sample::Render()
         return;
     }
 
-#if USE_VIDEO
+//#if USE_VIDEO
     // Get the latest video frame
     RECT r = { 0, 0, static_cast<LONG>(m_origTextureWidth), static_cast<LONG>(m_origTextureHeight) };
     MFVideoNormalizedRect rect = { 0.0f, 0.0f, 1.0f, 1.0f };
     m_player->TransferFrame(m_sharedVideoTexture, rect, r);
-#endif
+//#endif
 
     // Prepare the command list to render a new frame.
     m_deviceResources->Prepare();
@@ -314,34 +314,7 @@ void Sample::Render()
 
             ID3D12DescriptorHeap* pHeaps[] = { m_dmlDescriptorHeap->Heap() };
             commandList->SetDescriptorHeaps(_countof(pHeaps), pHeaps);
-
-#if !(USE_DMLX)
-            // Create an upsampled (nearest neighbor) version of the image first
-            m_dmlCommandRecorder->RecordDispatch(commandList, m_dmlUpsampleOps[0].Get(), m_dmlUpsampleBindings[0].Get());
-            // No UAV barrier is required here since we don't use the result right away.
-
-            // Run the intermediate model steps: 3 convolutions (with premultiplied batch normalization
-            // baked into the weights), an upsample, 3 convolutions w/ premultiplied batch norm, 1 final convolution.
-            // This generates a residual image.
-            for (int i = 0; i < c_numConvLayers; i++)
-            {
-                // Convolution
-                m_dmlCommandRecorder->RecordDispatch(commandList, m_dmlConvOps[i].Get(), m_dmlConvBindings[i].Get());
-                commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::UAV(nullptr));
-
-                if (i == 2)
-                {
-                    // Intermediate upsample
-                    m_dmlCommandRecorder->RecordDispatch(commandList, m_dmlUpsampleOps[1].Get(), m_dmlUpsampleBindings[1].Get());
-                    commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::UAV(nullptr));
-                }
-            }
-
-            // Add the residual image to the original nearest-neighbor upscale
-            m_dmlCommandRecorder->RecordDispatch(commandList, m_dmlAddResidualOp.Get(), m_dmlAddResidualBinding.Get());
-#else 
             m_dmlCommandRecorder->RecordDispatch(commandList, m_dmlGraph.Get(), m_dmlBindingTable.Get());
-#endif
             // UAV barrier handled below
             PIXEndEvent(commandList);
         }
@@ -907,7 +880,6 @@ void Sample::CreateTextureResources()
         m_indexBufferView.SizeInBytes = sizeof(s_indexData);
     }
 
-#if USE_VIDEO
     // Create video player.
     {
         wchar_t buff[MAX_PATH]; 
@@ -960,72 +932,6 @@ void Sample::CreateTextureResources()
                 nullptr,
                 &m_sharedVideoTexture));
     }
-#else
-    // Create static texture.
-    {
-        auto commandList = m_deviceResources->GetCommandList();
-        commandList->Reset(m_deviceResources->GetCommandAllocator(), nullptr);
-
-        ComPtr<ID3D12Resource> textureUploadHeap;
-    
-        D3D12_RESOURCE_DESC txtDesc = {};
-        txtDesc.MipLevels = txtDesc.DepthOrArraySize = 1;
-        txtDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-        txtDesc.SampleDesc.Count = 1;
-        txtDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-
-        wchar_t buff[MAX_PATH];
-        DX::FindMediaFile(buff, MAX_PATH, c_imagePath);
-
-        UINT width, height;
-        auto image = LoadBGRAImage(buff, width, height);
-        txtDesc.Width = m_origTextureWidth = width;
-        txtDesc.Height = m_origTextureHeight = height;
-
-        DX::ThrowIfFailed(
-            device->CreateCommittedResource(
-                &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-                D3D12_HEAP_FLAG_NONE,
-                &txtDesc,
-                D3D12_RESOURCE_STATE_COPY_DEST,
-                nullptr,
-                IID_PPV_ARGS(m_texture.ReleaseAndGetAddressOf())));
-
-        const UINT64 uploadBufferSize = GetRequiredIntermediateSize(m_texture.Get(), 0, 1);
-
-        // Create the GPU upload buffer.
-        DX::ThrowIfFailed(
-            device->CreateCommittedResource(
-                &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-                D3D12_HEAP_FLAG_NONE,
-                &CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize),
-                D3D12_RESOURCE_STATE_GENERIC_READ,
-                nullptr,
-                IID_PPV_ARGS(textureUploadHeap.GetAddressOf())));
-
-        D3D12_SUBRESOURCE_DATA textureData = {};
-        textureData.pData = image.data();
-        textureData.RowPitch = static_cast<LONG_PTR>(txtDesc.Width * sizeof(uint32_t));
-        textureData.SlicePitch = image.size();
-
-        UpdateSubresources(commandList, m_texture.Get(), textureUploadHeap.Get(), 0, 0, 1, &textureData);
-        commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ));
-
-        // Describe and create a SRV for the texture.
-        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        srvDesc.Format = txtDesc.Format;
-        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-        srvDesc.Texture2D.MipLevels = 1;
-        device->CreateShaderResourceView(m_texture.Get(), &srvDesc, m_SRVDescriptorHeap->GetCpuHandle(e_descTexture));
-    
-        DX::ThrowIfFailed(commandList->Close());
-        m_deviceResources->GetCommandQueue()->ExecuteCommandLists(1, CommandListCast(&commandList));
-
-        // Wait until assets have been uploaded to the GPU.
-        m_deviceResources->WaitForGpu();
-    }
-#endif
 }
 
 void Sample::CreateWeightTensors(
@@ -1272,7 +1178,6 @@ void Sample::OnDeviceLost()
     m_texRootSignatureLinear.Reset();
     m_tensorRenderPipelineState.Reset();
     m_tensorRenderRootSignature.Reset();
-    m_texture.Reset();
     m_videoTexture.Reset();
     m_finalResultTexture.Reset();
     m_indexBuffer.Reset();
@@ -1290,25 +1195,7 @@ void Sample::OnDeviceLost()
 
     m_modelInput.Reset();
     m_modelOutput.Reset();
-#if !(USE_DMLX)
-    for (int i = 0; i < c_numIntermediateBuffers; i++)
-    {
-        m_modelIntermediateResult[i].Reset();
-    }
 
-    for (int i = 0; i < e_opCount; i++)
-    {
-        m_dmlOpInitializers[i].Reset();
-        m_modelInitTemporaryResources[i].Reset();
-    }
-    for (int i = 0; i < c_numUpsampleLayers; i++)
-    {
-        m_dmlUpsampleOps[i].Reset();
-        m_modelUpsamplePersistentResources[i].Reset();
-        m_modelUpsampleTemporaryResources[i].Reset();
-        m_dmlUpsampleBindings[i].Reset();
-    }
-#endif
     m_dmlOpInitializer.Reset();
     m_dmlGraph.Reset();
     m_modelTemporaryResource.Reset();
@@ -1318,19 +1205,8 @@ void Sample::OnDeviceLost()
     {
         m_modelConvFilterWeights[i].Reset();
         m_modelConvBiasWeights[i].Reset();
-#if !(USE_DMLX)
-        m_modelConvPersistentResources[i].Reset();
-        m_modelConvTemporaryResources[i].Reset();
-        m_dmlConvOps[i].Reset();
-        m_dmlConvBindings[i].Reset();
-#endif
+
     }
-#if !(USE_DMLX)
-    m_dmlAddResidualOp.Reset();
-    m_modelAddPersistentResource.Reset();
-    m_modelAddTemporaryResource.Reset();
-    m_dmlAddResidualBinding.Reset();
-#endif
 
     m_dmlDescriptorHeap.reset();
 
