@@ -14,7 +14,7 @@ using namespace DirectX;
 
 #pragma warning(disable : 4238)
 
-void Sample::CreateDirectMLResources()
+void Upscaler::CreateDirectMLResources()
 {
     auto device = m_deviceResources->GetD3DDevice();
 
@@ -124,18 +124,26 @@ void Sample::CreateDirectMLResources()
         txtDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
         txtDesc.SampleDesc.Count = 1;
         txtDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-        txtDesc.Width = m_origTextureWidth * 2;
-        txtDesc.Height = m_origTextureHeight * 2;
+        txtDesc.Width = m_srcTextureWidth * 2;
+        txtDesc.Height = m_srcTextureHeight * 2;
         txtDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
         DX::ThrowIfFailed(
             device->CreateCommittedResource(
                 &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-                D3D12_HEAP_FLAG_NONE,
+                D3D12_HEAP_FLAG_SHARED,
                 &txtDesc,
                 D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
                 &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_B8G8R8A8_UNORM, DirectX::Colors::Black),
                 IID_PPV_ARGS(m_finalResultTexture.ReleaseAndGetAddressOf())));
+
+        DX::ThrowIfFailed(
+            device->CreateSharedHandle(
+                m_finalResultTexture.Get(),
+                nullptr,
+                GENERIC_ALL,
+                nullptr,
+                &m_finalResultTextureHandle));
 
         // Create an RTV for rendering to the texture, and an SRV for rendering it back to the screen
         D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
@@ -248,7 +256,7 @@ void Sample::CreateDirectMLResources()
         dml::Graph graph(m_dmlDevice.Get(), policy);
 
         // Set up input tensors
-        Dimensions modelInputSizes = { 1, 3, m_origTextureHeight, m_origTextureWidth };
+        Dimensions modelInputSizes = { 1, 3, m_srcTextureHeight, m_srcTextureWidth };
         auto modelInput = dml::InputTensor(graph, 0, dml::TensorDesc(dataType, modelInputSizes, policy));
 
         // conv1
@@ -379,7 +387,7 @@ void Sample::CreateDirectMLResources()
     m_deviceResources->WaitForGpu();
 }
 
-void Sample::InitializeDirectMLResources()
+void Upscaler::InitializeDirectMLResources()
 {
     auto commandList = m_deviceResources->GetCommandList();
     commandList->Reset(m_deviceResources->GetCommandAllocator(), nullptr);

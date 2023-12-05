@@ -24,9 +24,6 @@
     <ClCompile Include="LoadWeights.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Main.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="DirectMLSuperResolution.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -34,9 +31,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="pch.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="MediaEnginePlayer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -59,16 +53,10 @@
     <ClInclude Include="DeviceResources.h">
       <Filter>Common</Filter>
     </ClInclude>
-    <ClInclude Include="StepTimer.h">
-      <Filter>Common</Filter>
-    </ClInclude>
     <ClInclude Include="LoadWeights.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="pch.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="MediaEnginePlayer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Float16Compressor.h">
@@ -132,9 +120,6 @@
     </Manifest>
   </ItemGroup>
   <ItemGroup>
-    <CopyFileToFolders Include="Assets\FH3_1_540p.png" />
-    <CopyFileToFolders Include="Assets\FH3_2_540p.png" />
     <CopyFileToFolders Include="Assets\weights.bin" />
-    <CopyFileToFolders Include="Media\Videos\Turn10\FH3_540p60.mp4" />
   </ItemGroup>
 </Project>
